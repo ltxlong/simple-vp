@@ -73,7 +73,7 @@ const contextMenu = ref<{
 const isIPTVSourceUrl = (url: string): boolean => {
   if (!url) return false
   const lowerCaseUrl = url.toLowerCase()
-  return lowerCaseUrl.endsWith('.m3u') || lowerCaseUrl.endsWith('.txt')
+  return lowerCaseUrl.endsWith('.m3u') || lowerCaseUrl.endsWith('.m3u8') || lowerCaseUrl.endsWith('.txt')
 }
 
 // 处理响应内容的解析和渲染
@@ -102,14 +102,14 @@ const handleIPTVResponseContent = async (site: ResourceSite, index: number, cont
       <div class="iptv-results flex flex-col space-y-2">
   `
   
-  // 解析 m3u 或 txt 文件
+  // 解析 m3u 或 m3u8 或 txt 文件
   let groupedChannels: { [group: string]: {title: string, url: string}[] } = {}
   let currentGroup = '默认分组'
   // 用于跟踪分组添加顺序的数组
   let groupOrder: string[] = []
   
-  if (site.url.toLowerCase().endsWith('.m3u')) {
-    // 解析 m3u 格式
+  if (site.url.toLowerCase().endsWith('.m3u') || site.url.toLowerCase().endsWith('.m3u8')) {
+    // 解析 m3u 或 m3u8 格式
     const lines = content.split('\n')
     let currentTitle = ''
     let lastGroupTitle = ''
