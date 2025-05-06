@@ -1,9 +1,15 @@
 declare module 'dplayer' {
   export interface DPlayerOptions {
     container: HTMLElement;
+    mutex: boolean;
+    screenshot: boolean;
+    airplay: boolean;
+    chromecast: boolean;
+    live: boolean;
     video: {
       url: string;
       type?: string;
+      pic?: string; 
       customType?: {
         [key: string]: (video: HTMLVideoElement, player: DPlayer) => void;
       };
@@ -15,6 +21,7 @@ declare module 'dplayer' {
     preload?: string;
     volume?: number;
     playbackSpeed?: number[];
+    contextmenu?: Array;
   }
 
   export default class DPlayer {
