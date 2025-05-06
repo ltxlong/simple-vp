@@ -64,6 +64,21 @@ npm install
 npm run dev:local
 ```
 
+### docker 部署
+
+1. 镜像：
+```bash
+docker pull ghcr.io/ltxlong/simple-vp
+```
+
+2. 运行：
+```bash
+docker run -p 部署端本地端口:5173 ghcr.io/ltxlong/simple-vp
+
+（可能有其他命令，如 -d 或者其他参数什么的，主要注意是映射docker的端口为5173）
+管理后台默认密码是 123456
+```
+
 
 ## 管理后台配置
 
@@ -71,6 +86,10 @@ npm run dev:local
 
 - 资源站点（包含导入/导出、添加/删除/修改）
 - 解析API
+- 代理URL
+- 豆瓣热门
+- 健康过滤
+- 自动连播
 - 背景图片
 - 首页登录密码
 - 首页名称
