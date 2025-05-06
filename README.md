@@ -73,9 +73,9 @@ docker pull ghcr.io/ltxlong/simple-vp
 
 2. 运行：
 ```bash
-docker run -p 部署端本地端口:5173 ghcr.io/ltxlong/simple-vp
+docker run -d -p 部署端本地端口:5173 ghcr.io/ltxlong/simple-vp
 
-（可能有其他命令，如 -d 或者其他参数什么的，主要注意是映射docker的端口为5173）
+（可能有其他命令，如其他参数什么的，主要注意是映射docker的端口为5173）
 管理后台默认密码是 123456
 ```
 
