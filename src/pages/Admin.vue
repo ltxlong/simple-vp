@@ -16,7 +16,15 @@ const config = ref<Config>({
   enableLogin: false,
   loginPassword: '',
   announcement: '',
-  customTitle: ''
+  customTitle: '',
+  enableHealthFilter: true,
+  proxyVideoUrl: '',
+  proxyLiveUrl: '',
+  enableHotMovies: false,
+  hotMoviesProxyUrl: '',
+  hotTvDefaultTag: '',
+  hotMovieDefaultTag: '',
+  autoPlayNext: false
 })
 
 const isDialogOpen = ref(false)
@@ -34,6 +42,11 @@ const loadConfig = async () => {
   try {
     const configData = await getAdminConfig()
     config.value = configData
+    
+    // 如果没有健康过滤设置，默认为开启
+    if (config.value.enableHealthFilter === undefined) {
+      config.value.enableHealthFilter = true
+    }
     
     // 如果有密码，解密后存储到 plainPassword
     if (config.value.loginPassword) {
@@ -136,6 +149,11 @@ interface ResourceSite {
   active: boolean
   isPost?: boolean
   postData?: string
+  adFilter?: {
+    status: boolean
+    item: string
+    regularExpression?: string
+  }
 }
 
 const deleteResourceSite = async (index: number) => {
@@ -246,8 +264,38 @@ const addResourceSite = async () => {
       <input
         id="siteSearchResultClass"
         class="w-full p-2 mb-3 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-primary-light dark:focus:border-primary-dark text-sm"
-        placeholder="输入搜索结果列表元素类名"
+        placeholder="输入搜索结果列表类名（IPTV、api时为空）"
       />
+      <div class="mb-3">
+        <div class="flex items-center mb-2">
+          <label class="flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              id="adFilterStatus"
+              class="sr-only peer"
+              checked
+            />
+            <div class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-light dark:peer-checked:bg-primary-dark"></div>
+            <span class="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300">启用广告过滤</span>
+          </label>
+        </div>
+        <select 
+          id="adFilterItem" 
+          class="w-full p-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-primary-light dark:focus:border-primary-dark text-sm"
+        >
+          <option value="default_del_ad_tag_to_filter">默认通用广告过滤（base）</option>
+          <option value="ad_tag_to_del_filter">根据标识删除过滤</option>
+          <option value="ad_name_len_to_del_filter">根据名称长度删除过滤</option>
+          <option value="ad_name_regular_to_del_filter">自定义正则匹配删除过滤</option>
+        </select>
+        <div id="regularExpressionContainer" class="mt-2 hidden">
+          <input
+            id="regularExpression"
+            class="w-full p-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-primary-light dark:focus:border-primary-dark text-sm"
+            placeholder="输入正则表达式"
+          />
+        </div>
+      </div>
       <input
         id="siteRemark"
         class="w-full p-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-primary-light dark:focus:border-primary-dark text-sm"
@@ -278,6 +326,16 @@ const addResourceSite = async () => {
           postDataContainer.classList.toggle('hidden', !isPostCheckbox.checked)
         }
       })
+      
+      // 添加广告过滤相关的事件监听
+      const adFilterItem = document.getElementById('adFilterItem') as HTMLSelectElement
+      const regularExpressionContainer = document.getElementById('regularExpressionContainer')
+      
+      adFilterItem.addEventListener('change', () => {
+        if (regularExpressionContainer) {
+          regularExpressionContainer.classList.toggle('hidden', adFilterItem.value !== 'ad_name_regular_to_del_filter')
+        }
+      })
     },
     preConfirm: () => {
       const url = (document.getElementById('siteUrl') as HTMLInputElement).value.trim()
@@ -285,9 +343,19 @@ const addResourceSite = async () => {
       const remark = (document.getElementById('siteRemark') as HTMLInputElement).value.trim()
       const isPost = (document.getElementById('isPost') as HTMLInputElement).checked
       const postData = (document.getElementById('postData') as HTMLTextAreaElement).value.trim()
+      
+      // 获取广告过滤相关的值
+      const adFilterStatus = (document.getElementById('adFilterStatus') as HTMLInputElement).checked
+      const adFilterItem = (document.getElementById('adFilterItem') as HTMLSelectElement).value
+      const regularExpression = (document.getElementById('regularExpression') as HTMLInputElement).value.trim()
 
       if (!url) {
         Swal.showValidationMessage('请输入资源站点搜索URL')
+        return false
+      }
+
+      if (!remark) {
+        Swal.showValidationMessage('请输入备注')
         return false
       }
 
@@ -299,8 +367,29 @@ const addResourceSite = async () => {
           return false
         }
       }
+      
+      if (adFilterItem === 'ad_name_regular_to_del_filter' && !regularExpression) {
+        Swal.showValidationMessage('请输入正则表达式')
+        return false
+      } else if (adFilterItem === 'ad_name_regular_to_del_filter' && regularExpression) {
+        try {
+          new RegExp(regularExpression)
+        } catch(error) {
+          Swal.showValidationMessage('请输入正确的正则表达式')
+          return false
+        }
+      }
 
-      return { url, searchResultClass, remark, isPost, postData: isPost ? postData : undefined }
+      return { 
+        url, 
+        searchResultClass, 
+        remark, 
+        isPost, 
+        postData: isPost ? postData : undefined,
+        adFilterStatus,
+        adFilterItem,
+        regularExpression: adFilterItem === 'ad_name_regular_to_del_filter' ? regularExpression : undefined
+      }
     }
   })
 
@@ -313,7 +402,12 @@ const addResourceSite = async () => {
       remark: result.value.remark,
       active: true,
       isPost: result.value.isPost,
-      postData: result.value.postData
+      postData: result.value.postData,
+      adFilter: {
+        status: result.value.adFilterStatus,
+        item: result.value.adFilterItem,
+        regularExpression: result.value.regularExpression
+      }
     })
     await Swal.fire({
       title: '添加成功',
@@ -339,6 +433,10 @@ const addResourceSite = async () => {
 const editResourceSite = async (index: number) => {
   isDialogOpen.value = true
   const site = config.value.resourceSites[index]
+  
+  // 设置广告过滤的默认值
+  const adFilter = site.adFilter || { status: true, item: 'default_del_ad_tag_to_filter' }
+  
   const result = await Swal.fire({
     title: '编辑资源站点',
     titleText: '编辑资源站点',
@@ -388,9 +486,40 @@ const editResourceSite = async (index: number) => {
       <input
         id="siteSearchResultClass"
         class="w-full p-2 mb-3 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-primary-light dark:focus:border-primary-dark text-sm"
-        placeholder="输入搜索结果列表元素类名"
+        placeholder="输入搜索结果列表类名（IPTV、api时为空）"
         value="${site.searchResultClass || ''}"
       />
+      <div class="mb-3">
+        <div class="flex items-center mb-2">
+          <label class="flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              id="adFilterStatus"
+              class="sr-only peer"
+              ${adFilter.status ? 'checked' : ''}
+            />
+            <div class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-light dark:peer-checked:bg-primary-dark"></div>
+            <span class="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300">启用广告过滤</span>
+          </label>
+        </div>
+        <select 
+          id="adFilterItem" 
+          class="w-full p-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-primary-light dark:focus:border-primary-dark text-sm"
+        >
+          <option value="default_del_ad_tag_to_filter" ${adFilter.item === 'default_del_ad_tag_to_filter' ? 'selected' : ''}>默认通用广告过滤（base）</option>
+          <option value="ad_tag_to_del_filter" ${adFilter.item === 'ad_tag_to_del_filter' ? 'selected' : ''}>根据标识删除过滤</option>
+          <option value="ad_name_len_to_del_filter" ${adFilter.item === 'ad_name_len_to_del_filter' ? 'selected' : ''}>根据名称长度删除过滤</option>
+          <option value="ad_name_regular_to_del_filter" ${adFilter.item === 'ad_name_regular_to_del_filter' ? 'selected' : ''}>自定义正则匹配删除过滤</option>
+        </select>
+        <div id="regularExpressionContainer" class="mt-2 ${adFilter.item === 'ad_name_regular_to_del_filter' ? '' : 'hidden'}">
+          <input
+            id="regularExpression"
+            class="w-full p-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-primary-light dark:focus:border-primary-dark text-sm"
+            placeholder="输入正则表达式"
+            value="${adFilter.regularExpression || ''}"
+          />
+        </div>
+      </div>
       <input
         id="siteRemark"
         class="w-full p-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-primary-light dark:focus:border-primary-dark text-sm"
@@ -422,6 +551,16 @@ const editResourceSite = async (index: number) => {
           postDataContainer.classList.toggle('hidden', !isPostCheckbox.checked)
         }
       })
+      
+      // 添加广告过滤相关的事件监听
+      const adFilterItem = document.getElementById('adFilterItem') as HTMLSelectElement
+      const regularExpressionContainer = document.getElementById('regularExpressionContainer')
+      
+      adFilterItem.addEventListener('change', () => {
+        if (regularExpressionContainer) {
+          regularExpressionContainer.classList.toggle('hidden', adFilterItem.value !== 'ad_name_regular_to_del_filter')
+        }
+      })
     },
     preConfirm: () => {
       const url = (document.getElementById('siteUrl') as HTMLInputElement).value.trim()
@@ -429,9 +568,19 @@ const editResourceSite = async (index: number) => {
       const remark = (document.getElementById('siteRemark') as HTMLInputElement).value.trim()
       const isPost = (document.getElementById('isPost') as HTMLInputElement).checked
       const postData = (document.getElementById('postData') as HTMLTextAreaElement).value.trim()
+      
+      // 获取广告过滤相关的值
+      const adFilterStatus = (document.getElementById('adFilterStatus') as HTMLInputElement).checked
+      const adFilterItem = (document.getElementById('adFilterItem') as HTMLSelectElement).value
+      const regularExpression = (document.getElementById('regularExpression') as HTMLInputElement).value.trim()
 
       if (!url) {
         Swal.showValidationMessage('请输入资源站点搜索URL')
+        return false
+      }
+
+      if (!remark) {
+        Swal.showValidationMessage('请输入备注')
         return false
       }
 
@@ -443,8 +592,29 @@ const editResourceSite = async (index: number) => {
           return false
         }
       }
+      
+      if (adFilterItem === 'ad_name_regular_to_del_filter' && !regularExpression) {
+        Swal.showValidationMessage('请输入正则表达式')
+        return false
+      } else if (adFilterItem === 'ad_name_regular_to_del_filter' && regularExpression) {
+        try {
+          new RegExp(regularExpression)
+        } catch(error) {
+          Swal.showValidationMessage('请输入正确的正则表达式')
+          return false
+        }
+      }
 
-      return { url, searchResultClass, remark, isPost, postData: isPost ? postData : undefined }
+      return { 
+        url, 
+        searchResultClass, 
+        remark, 
+        isPost, 
+        postData: isPost ? postData : undefined,
+        adFilterStatus,
+        adFilterItem,
+        regularExpression: adFilterItem === 'ad_name_regular_to_del_filter' ? regularExpression : ''
+      }
     }
   })
 
@@ -457,7 +627,12 @@ const editResourceSite = async (index: number) => {
       searchResultClass: result.value.searchResultClass,
       remark: result.value.remark,
       isPost: result.value.isPost,
-      postData: result.value.postData
+      postData: result.value.postData,
+      adFilter: {
+        status: result.value.adFilterStatus,
+        item: result.value.adFilterItem,
+        regularExpression: result.value.regularExpression
+      }
     }
     await Swal.fire({
       title: '保存成功',
@@ -587,50 +762,6 @@ const saveConfig = async () => {
         toast.addEventListener('mouseleave', Swal.resumeTimer)
       }
     })
-  }
-}
-
-// 更新配置
-const handleUpdateConfig = async () => {
-  try {
-    const token = sessionStorage.getItem('adminToken')
-    if (!token) {
-      throw new Error('未登录')
-    }
-
-    const response = await fetch('/api/admin/config', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(config.value)
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || '更新失败')
-    }
-
-    await Swal.fire({
-      icon: 'success',
-      title: '更新成功',
-      showConfirmButton: false,
-      timer: 1500
-    })
-  } catch (error) {
-    console.error('更新配置失败:', error)
-    await Swal.fire({
-      icon: 'error',
-      title: '更新失败',
-      text: error instanceof Error ? error.message : '未知错误'
-    })
-
-    // 如果是401或403错误，清除登录状态并刷新页面
-    if (error instanceof Error && (error.message.includes('401') || error.message.includes('403'))) {
-      sessionStorage.removeItem('adminToken')
-      window.location.reload()
-    }
   }
 }
 
@@ -801,7 +932,7 @@ const handleImportConfig = async () => {
   <div v-if="isLoading" class="min-h-screen flex items-center justify-center bg-background-light dark:bg-background-dark">
     <div class="text-center">
       <div class="w-12 h-12 border-4 border-primary-light dark:border-primary-dark border-t-transparent rounded-full animate-spin mb-4"></div>
-      <p class="text-text-light dark:text-text-dark">加载中...</p>
+      <p class="text-primary-light dark:text-primary-dark">加载中...</p>
     </div>
   </div>
   
@@ -846,7 +977,7 @@ const handleImportConfig = async () => {
             class="h-10 w-10 flex items-center justify-center rounded-lg bg-background-light dark:bg-background-dark text-primary-light dark:text-primary-dark hover:bg-gray-100 dark:hover:bg-gray-800"
             title="返回首页"
           >
-            <el-icon class="text-xl"><House /></el-icon>
+            <el-icon class="text-xl"><VideoPlay /></el-icon>
           </button>
           <h1 class="text-2xl font-bold">管理后台</h1>
         </div>
@@ -862,12 +993,12 @@ const handleImportConfig = async () => {
       <div class="space-y-6">
         <!-- 资源站点配置 -->
         <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
-            <div class="flex items-center gap-2">
+          <div class="flex flex-col sm:flex-row flex-wrap justify-between items-center gap-4 mb-4">
+            <div class="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start">
               <el-icon class="text-xl text-primary-light dark:text-primary-dark"><Link /></el-icon>
               <h2 class="text-xl font-semibold">资源站点配置</h2>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-end flex-wrap">
               <button
                 @click="handleExportConfig"
                 class="px-4 py-2 bg-orange-500 text-white rounded hover:opacity-90"
@@ -900,20 +1031,20 @@ const handleImportConfig = async () => {
                   <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-light dark:peer-checked:bg-primary-dark"></div>
                   <span class="sr-only">激活/暂停</span>
                 </label>
-                <div class="flex-1 flex flex-col sm:flex-row gap-2 min-w-0">
-                  <div class="w-[40%] min-w-0 p-2 rounded bg-gray-50 dark:bg-gray-700/30 flex items-center">
+                <div class="flex-1 flex flex-col sm:flex-row gap-2 min-w-0 w-full">
+                  <div class="w-full sm:w-[40%] min-w-0 p-2 rounded bg-gray-50 dark:bg-gray-700/30 flex items-center">
                     <div class="truncate" :title="site.url">{{ site.url }}</div>
                   </div>
-                  <div class="w-[30%] min-w-0 p-2 rounded bg-gray-50 dark:bg-gray-700/30">
-                    <div class="text-sm text-gray-500 dark:text-gray-400">搜索列表元素类名</div>
+                  <div class="w-full sm:w-[30%] min-w-0 p-2 rounded bg-gray-50 dark:bg-gray-700/30">
+                    <div class="text-sm text-gray-500 dark:text-gray-400">搜索结果列表类名</div>
                     <div class="truncate" :title="site.searchResultClass || '无'">{{ site.searchResultClass || '无' }}</div>
                   </div>
-                  <div class="w-[30%] min-w-0 p-2 rounded bg-gray-50 dark:bg-gray-700/30">
+                  <div class="w-full sm:w-[30%] min-w-0 p-2 rounded bg-gray-50 dark:bg-gray-700/30">
                     <div class="text-sm text-gray-500 dark:text-gray-400">备注</div>
                     <div class="truncate" :title="site.remark || '无备注'">{{ site.remark || '无备注' }}</div>
                   </div>
                 </div>
-                <div class="flex gap-2 shrink-0">
+                <div class="flex gap-2 shrink-0 mt-2 sm:mt-0">
                   <button
                     @click="editResourceSite(index)"
                     class="h-10 w-10 flex items-center justify-center bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
@@ -942,12 +1073,30 @@ const handleImportConfig = async () => {
           </div>
           <div class="space-y-4">
             <div>
-              <label class="block mb-2">解析 API</label>
+              <label class="block mb-2">解析 API <br><span class="text-xs text-gray-500 dark:text-gray-400">( 是前端直接请求完成，不会对服务器产生额外的流量，不会解析资源站点的视频，只解析页面的 )</span></label>
               <input
                 v-model="config.parseApi"
                 type="text"
                 class="w-[200px] p-2 rounded border-[0.5px] border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-text-light dark:text-text-dark focus:outline-none focus:border-primary-light dark:focus:border-primary-dark focus:w-full transition-[width] duration-200"
                 placeholder="输入解析API地址"
+              />
+            </div>
+            <div>
+              <label class="block mb-2">视频代理 URL <br><span class="text-xs text-gray-500 dark:text-gray-400">( 是前端代理请求，URL会暴露在请求信息，但相对于后端代理请求而言，不会对服务器产生额外的流量 )</span><br><span class="text-xs text-gray-500 dark:text-gray-400">( 如果不配置该代理URL，直接前端完成请求；只有在请求重试都失败后，才尝试服务器后端代理 /api/proxy )</span><br><span class="text-xs text-gray-500 dark:text-gray-400">( 只要配置了代理URL，无论是 视频 还是 直播 代理，那么在请求重试都失败后，也不会尝试服务器代理请求 )</span></label>
+              <input
+                v-model="config.proxyVideoUrl"
+                type="text"
+                class="w-[200px] p-2 rounded border-[0.5px] border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-text-light dark:text-text-dark focus:outline-none focus:border-primary-light dark:focus:border-primary-dark focus:w-full transition-[width] duration-200"
+                placeholder="输入视频代理URL地址"
+              />
+            </div>
+            <div>
+              <label class="block mb-2">直播代理 URL <br><span class="text-xs text-gray-500 dark:text-gray-400">( 是前端代理请求，URL会暴露在请求信息，但相对于后端代理请求而言，不会对服务器产生额外的流量 )</span><br><span class="text-xs text-gray-500 dark:text-gray-400">( 如果不配置该代理URL，那么http链接默认走的是服务器后端代理流量 /api/proxy，代理是为了能够正常请求 )</span><br><span class="text-xs text-gray-500 dark:text-gray-400">( 只要配置了代理URL，无论是 视频 还是 直播 代理，那么在请求重试都失败后，也不会尝试服务器代理请求 )</span></label>
+              <input
+                v-model="config.proxyLiveUrl"
+                type="text"
+                class="w-[200px] p-2 rounded border-[0.5px] border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-text-light dark:text-text-dark focus:outline-none focus:border-primary-light dark:focus:border-primary-dark focus:w-full transition-[width] duration-200"
+                placeholder="输入直播代理URL地址"
               />
             </div>
           </div>
@@ -993,6 +1142,73 @@ const handleImportConfig = async () => {
                 </button>
               </div>
             </div>
+            
+            <!-- 健康过滤开关 -->
+            <label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg group">
+              <div class="relative">
+                <input
+                  v-model="config.enableHealthFilter"
+                  type="checkbox"
+                  class="sr-only peer"
+                />
+                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-light dark:peer-checked:bg-primary-dark"></div>
+              </div>
+              <span class="text-gray-700 dark:text-gray-200 group-hover:text-primary-light dark:group-hover:text-primary-dark transition-colors">
+                启用健康过滤（搜索时，根据分类过滤掉不健康的资源，有的站点没有不健康的分类就过滤不了）
+              </span>
+            </label>
+            
+            <!-- 豆瓣热门功能开关 -->
+            <label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg group">
+              <div class="relative">
+                <input
+                  v-model="config.enableHotMovies"
+                  type="checkbox"
+                  class="sr-only peer"
+                />
+                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-light dark:peer-checked:bg-primary-dark"></div>
+              </div>
+              <span class="text-gray-700 dark:text-gray-200 group-hover:text-primary-light dark:group-hover:text-primary-dark transition-colors">
+                启用豆瓣热门功能
+              </span>
+            </label>
+            
+            <!-- 豆瓣代理URL配置 -->
+            <div v-if="config.enableHotMovies" class="mt-2 ml-14">
+              <input
+                v-model="config.hotMoviesProxyUrl"
+                type="text"
+                class="w-full p-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-primary-light dark:focus:border-primary-dark mb-2"
+                placeholder="（可选）自定义代理URL请求豆瓣接口"
+              />
+              <input
+                v-model="config.hotTvDefaultTag"
+                type="text"
+                class="w-full p-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-primary-light dark:focus:border-primary-dark mb-2"
+                placeholder="（可选）设置电视剧默认标签：国产剧"
+              />
+              <input
+                v-model="config.hotMovieDefaultTag"
+                type="text"
+                class="w-full p-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-primary-light dark:focus:border-primary-dark"
+                placeholder="（可选）设置电影默认标签：科幻"
+              />
+            </div>
+            
+            <!-- 剧集自动连播开关 -->
+            <label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg group">
+              <div class="relative">
+                <input
+                  v-model="config.autoPlayNext"
+                  type="checkbox"
+                  class="sr-only peer"
+                />
+                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-light dark:peer-checked:bg-primary-dark"></div>
+              </div>
+              <span class="text-gray-700 dark:text-gray-200 group-hover:text-primary-light dark:group-hover:text-primary-dark transition-colors">
+                启用剧集自动连播
+              </span>
+            </label>
           </div>
         </div>
 
@@ -1017,13 +1233,13 @@ const handleImportConfig = async () => {
 
             <div class="mb-4">
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                自定义首页名称
+                自定义首页名称/logo
               </label>
               <input
                 v-model="config.customTitle"
                 type="text"
                 class="w-full p-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-primary-light dark:focus:border-primary-dark"
-                placeholder="不配置则使用默认名称，值为false则不显示名称"
+                placeholder="不配置则使用默认图标"
               />
             </div>
 
