@@ -9,7 +9,15 @@ export const defaultConfig: Config = {
   enableLogin: false,
   loginPassword: '',
   announcement: '',
-  customTitle: ''
+  customTitle: '',
+  enableHealthFilter: true,
+  proxyVideoUrl: '',
+  proxyLiveUrl: '',
+  enableHotMovies: false,
+  hotMoviesProxyUrl: '',
+  hotTvDefaultTag: '',
+  hotMovieDefaultTag: '',
+  autoPlayNext: false
 }
 
 /**
