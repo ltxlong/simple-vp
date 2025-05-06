@@ -3,10 +3,12 @@ import cors from 'cors'
 import session from 'express-session'
 import { getConfig, updateConfig, getPublicConfig, verifyPassword } from './config-handler.js'
 import { handleSearchRequest } from './search-handler.js'
+import { handleSearchJsonRequest } from './search-json-handler.js'
 import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import jwt from 'jsonwebtoken'
+import { handleProxyRequest } from './proxy-handler.js'
 
 // 加载 .env 文件
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -250,6 +252,16 @@ app.get('/api/home/config', async (req, res) => {
 // 添加搜索 API 端点
 app.post('/api/search', async (req, res) => {
   await handleSearchRequest(req, res)
+})
+
+// 添加搜索 JSON API 端点
+app.post('/api/search-json', async (req, res) => {
+  await handleSearchJsonRequest(req, res)
+})
+
+// 视频代理路由
+app.get('/api/proxy', async (req, res) => {
+  await handleProxyRequest(req, res)
 })
 
 const port = process.env.API_PORT || 3001
