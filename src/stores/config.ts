@@ -8,6 +8,14 @@ interface Config {
   loginPassword: string
   announcement: string
   customTitle: string
+  enableHealthFilter: boolean
+  proxyVideoUrl: string
+  proxyLiveUrl: string
+  enableHotMovies: boolean
+  hotMoviesProxyUrl: string
+  hotTvDefaultTag: string
+  hotMovieDefaultTag: string
+  autoPlayNext: boolean
 }
 
 export const useConfigStore = defineStore('config', {
@@ -18,7 +26,15 @@ export const useConfigStore = defineStore('config', {
     enableLogin: false,
     loginPassword: '',
     announcement: '',
-    customTitle: ''
+    customTitle: '',
+    enableHealthFilter: true,
+    proxyVideoUrl: '',
+    proxyLiveUrl: '',
+    enableHotMovies: false,
+    hotMoviesProxyUrl: '',
+    hotTvDefaultTag: '',
+    hotMovieDefaultTag: '',
+    autoPlayNext: false
   }),
 
   actions: {
