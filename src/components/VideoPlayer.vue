@@ -1917,17 +1917,6 @@ function customLoaderFactory() {
   overflow: hidden !important;
 }
 
-/* 在网页全屏模式下隐藏分割线和右侧面板 */
-body.web-fullscreen .lg\:block.lg\:w-1,
-body.web-fullscreen .lg\:h-auto.p-4 {
-  display: none !important;
-}
-
-/* 在网页全屏模式下让视频区域占满宽度 */
-body.web-fullscreen .lg\:h-auto.relative {
-  width: 100% !important;
-}
-
 /* 在网页全屏模式下隐藏导航栏 */
 body.web-fullscreen nav {
   display: none !important;
@@ -1959,21 +1948,23 @@ body.web-fullscreen .video_player_container {
   margin: 0 !important;
   padding: 0 !important;
   z-index: 9999 !important;
-}
-
-.web-fullscreen .dplayer-video-wrap {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 100% !important;
-  height: 100% !important;
-}
-
-.web-fullscreen .dplayer-video-current {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: contain !important;
+  /* 添加以下属性确保完全撑满 */
+  min-width: 100vw !important;
+  min-height: 100vh !important;
+  max-width: 100vw !important;
   max-height: 100vh !important;
+  transform: none !important;
+  /* 确保视频容器也撑满 */
+  .dplayer-video-wrap {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  /* 确保视频元素也撑满 */
+  .dplayer-video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+  }
 }
 
 .dplayer-web-fullscreen-fix {
